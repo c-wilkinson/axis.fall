@@ -47,6 +47,10 @@ class Player:
     @property
     def speed(self) -> float:
         return self.velocity.length()
+        
+    @property
+    def alive(self) -> bool:
+        return self.health > 0
 
     def reset(self) -> None:
         self.position = self.spawn.copy()
@@ -60,6 +64,11 @@ class Player:
         self.gravity_flash_timer = 0.0
 
     def update(self, controls: PlayerInput, world: CollisionWorld, dt: float) -> None:
+        if not self.alive:
+            self.attack_held = False
+            self.velocity.update(0, 0)
+            return
+
         self.invulnerability_timer = max(0.0, self.invulnerability_timer - dt)
         self.gravity_flash_timer = max(0.0, self.gravity_flash_timer - dt)
         self.attack_held = controls.attack_held
@@ -114,30 +123,41 @@ class Player:
         ) or world.touching_in_direction(self.rect, gravity)
 
     def set_gravity(self, direction: GravityDirection) -> None:
-        if direction is self.gravity_direction:
+        if not self.alive or direction is self.gravity_direction:
             return
         self.gravity_direction = direction
         self.grounded = False
         self.gravity_flash_timer = 0.12
 
     def take_damage(self, knockback: pygame.Vector2) -> None:
-        if self.invulnerability_timer > 0.0:
+        if not self.alive or self.invulnerability_timer > 0.0:
             return
-        self.health -= 1
+
+        self.health = max(0, self.health - 1)
+        self.grounded = False
+
+        if not self.alive:
+            self.attack_held = False
+            self.velocity.update(0, 0)
+            self.invulnerability_timer = 0.0
+            return
+
         self.invulnerability_timer = 0.8
         self.velocity = knockback
-        self.grounded = False
 
     def draw(self, surface: pygame.Surface) -> None:
         flashing = self.invulnerability_timer > 0 and int(self.invulnerability_timer * 12) % 2 == 0
         if flashing:
             return
 
-        fill = (235, 235, 235)
-        if self.attack_held:
-            fill = (255, 214, 92)
-        if self.gravity_flash_timer > 0:
+        if not self.alive:
+            fill = (90, 92, 98)
+        elif self.gravity_flash_timer > 0:
             fill = (136, 212, 255)
+        elif self.attack_held:
+            fill = (255, 214, 92)
+        else:
+            fill = (235, 235, 235)
 
         pygame.draw.rect(surface, fill, self.rect, border_radius=5)
         pygame.draw.rect(surface, (30, 34, 42), self.rect, width=3, border_radius=5)

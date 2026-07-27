@@ -29,7 +29,11 @@ class Guard:
         self.hit_flash_timer = max(0.0, self.hit_flash_timer - dt)
         self.contact_cooldown = max(0.0, self.contact_cooldown - dt)
 
-        if not self.alive or not self.rect.colliderect(player.rect):
+        if (
+            not self.alive
+            or not player.alive
+            or not self.rect.colliderect(player.rect)
+        ):
             return None
         if self.contact_cooldown > 0.0:
             return None

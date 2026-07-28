@@ -23,7 +23,6 @@ axisfall = "axisfall.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
@@ -34,3 +33,6 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.setuptools.package-data]
+axisfall = ["assets/player/*.png"]

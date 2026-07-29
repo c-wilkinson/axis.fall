@@ -28,7 +28,7 @@ class TestRoomScene(Scene):
         self.player = Player((130, 625), settings)
         self.guards = [
             Guard((1050, 656),settings,patrol_range=(980, 1208)),
-            Guard((700, 544),settings),
+            Guard((700, 544),settings,facing_direction=-1),
         ]
         self.debug_visible = True
         self.jump_queued = False

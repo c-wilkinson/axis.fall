@@ -7,7 +7,7 @@ from axisfall.settings import Settings
 
 
 class Guard:
-    def __init__(self, position: tuple[int, int], settings: Settings, patrol_range: tuple[int, int] | None = None, patrol_speed: float = 80.0) -> None:
+    def __init__(self, position: tuple[int, int], settings: Settings, patrol_range: tuple[int, int] | None = None, patrol_speed: float = 80.0,  facing_direction: int = 1) -> None:
         self.settings = settings
         self.start_position = position
         self.rect = pygame.Rect(0, 0, 44, 62)
@@ -19,7 +19,8 @@ class Guard:
 
         self.patrol_range = patrol_range
         self.patrol_speed = patrol_speed
-        self.patrol_direction = 1
+        self.start_direction = 1 if facing_direction >= 0 else -1
+        self.patrol_direction = self.start_direction
         self.patrol_x = float(self.rect.centerx)
 
     @property
@@ -31,7 +32,7 @@ class Guard:
         self.health = self.max_health
         self.hit_flash_timer = 0.0
         self.contact_cooldown = 0.0
-        self.patrol_direction = 1
+        self.patrol_direction = self.start_direction
         self.patrol_x = float(self.rect.centerx)
 
     def update(self, player: Player, dt: float) -> str | None:
@@ -52,8 +53,21 @@ class Guard:
 
         impact_speed = player.speed
         if player.attack_held and impact_speed >= self.settings.impact_speed:
-            damage = 2 if impact_speed >= self.settings.heavy_impact_speed else 1
-            self.health = max(0, self.health - damage)
+            heavy_hit = impact_speed >= self.settings.heavy_impact_speed
+            damage = 2.0 if heavy_hit else 1.0
+
+            player_is_in_front = (
+                self.patrol_direction > 0
+                and player.rect.centerx >= self.rect.centerx
+            ) or (
+                self.patrol_direction < 0
+                and player.rect.centerx <= self.rect.centerx
+            )
+
+            if player_is_in_front:
+                damage *= 0.5
+
+            self.health = max(0.0, self.health - damage)
             self.hit_flash_timer = 0.16
             self.contact_cooldown = 0.25
 
@@ -61,7 +75,7 @@ class Guard:
                 player.velocity = -player.velocity.normalize() * min(260.0, impact_speed * 0.35)
             else:
                 player.velocity = pygame.Vector2(0, -220)
-            return "heavy_hit" if damage == 2 else "hit"
+            return "heavy_hit" if heavy_hit else "hit"
 
         separation = pygame.Vector2(player.rect.center) - pygame.Vector2(self.rect.center)
         if separation.length_squared() == 0:
@@ -100,8 +114,48 @@ class Guard:
         pygame.draw.rect(surface, (38, 34, 40), self.rect, width=4, border_radius=6)
 
         shield = pygame.Rect(0, 0, 12, 40)
-        shield.midleft = (self.rect.left - 4, self.rect.centery)
-        pygame.draw.rect(surface, (92, 98, 112), shield, border_radius=4)
+
+        if self.patrol_direction > 0:
+            shield.midleft = (
+                self.rect.right - 4,
+                self.rect.centery,
+            )
+            visor_start = (
+                self.rect.centerx,
+                self.rect.top + 15,
+            )
+            visor_end = (
+                self.rect.right + 3,
+                self.rect.top + 15,
+            )
+        else:
+            shield.midright = (
+                self.rect.left + 4,
+                self.rect.centery,
+            )
+            visor_start = (
+                self.rect.centerx,
+                self.rect.top + 15,
+            )
+            visor_end = (
+                self.rect.left - 3,
+                self.rect.top + 15,
+            )
+
+        pygame.draw.rect(
+            surface,
+            (92, 98, 112),
+            shield,
+            border_radius=4,
+        )
+
+        pygame.draw.line(
+            surface,
+            (38, 34, 40),
+            visor_start,
+            visor_end,
+            width=4,
+        )
 
         bar = pygame.Rect(self.rect.left, self.rect.top - 12, self.rect.width, 6)
         pygame.draw.rect(surface, (40, 42, 48), bar)

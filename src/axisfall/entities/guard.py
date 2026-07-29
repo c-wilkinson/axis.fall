@@ -7,8 +7,9 @@ from axisfall.settings import Settings
 
 
 class Guard:
-    def __init__(self, position: tuple[int, int], settings: Settings) -> None:
+    def __init__(self, position: tuple[int, int], settings: Settings, patrol_range: tuple[int, int] | None = None, patrol_speed: float = 80.0) -> None:
         self.settings = settings
+        self.start_position = position
         self.rect = pygame.Rect(0, 0, 44, 62)
         self.rect.midbottom = position
         self.max_health = 4
@@ -16,18 +17,29 @@ class Guard:
         self.hit_flash_timer = 0.0
         self.contact_cooldown = 0.0
 
+        self.patrol_range = patrol_range
+        self.patrol_speed = patrol_speed
+        self.patrol_direction = 1
+        self.patrol_x = float(self.rect.centerx)
+
     @property
     def alive(self) -> bool:
         return self.health > 0
 
     def reset(self) -> None:
+        self.rect.midbottom = self.start_position
         self.health = self.max_health
         self.hit_flash_timer = 0.0
         self.contact_cooldown = 0.0
+        self.patrol_direction = 1
+        self.patrol_x = float(self.rect.centerx)
 
     def update(self, player: Player, dt: float) -> str | None:
         self.hit_flash_timer = max(0.0, self.hit_flash_timer - dt)
         self.contact_cooldown = max(0.0, self.contact_cooldown - dt)
+
+        if self.alive:
+            self._update_patrol(dt)
 
         if (
             not self.alive
@@ -58,6 +70,22 @@ class Guard:
         player.take_damage(knockback)
         self.contact_cooldown = 0.55
         return "player_hurt"
+
+    def _update_patrol(self, dt: float) -> None:
+        if self.patrol_range is None:
+            return
+
+        patrol_left, patrol_right = self.patrol_range
+        self.patrol_x += self.patrol_direction * self.patrol_speed * dt
+
+        if self.patrol_x <= patrol_left:
+            self.patrol_x = float(patrol_left)
+            self.patrol_direction = 1
+        elif self.patrol_x >= patrol_right:
+            self.patrol_x = float(patrol_right)
+            self.patrol_direction = -1
+
+        self.rect.centerx = round(self.patrol_x)
 
     def draw(self, surface: pygame.Surface) -> None:
         if not self.alive:

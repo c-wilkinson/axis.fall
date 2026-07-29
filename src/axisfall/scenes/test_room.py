@@ -26,7 +26,10 @@ class TestRoomScene(Scene):
         self.solids = self._build_room()
         self.world = CollisionWorld(self.solids)
         self.player = Player((130, 625), settings)
-        self.guard = Guard((1050, 656), settings)
+        self.guards = [
+            Guard((1050, 656),settings,patrol_range=(980, 1208)),
+            Guard((700, 544),settings),
+        ]
         self.debug_visible = True
         self.jump_queued = False
         self.gravity_queued: GravityDirection | None = None
@@ -55,7 +58,8 @@ class TestRoomScene(Scene):
 
     def reset(self) -> None:
         self.player.reset()
-        self.guard.reset()
+        for guard in self.guards:
+            guard.reset()
         self.message = "Room reset. Momentum is preserved when gravity changes."
         self.message_timer = 2.8
 
@@ -91,19 +95,21 @@ class TestRoomScene(Scene):
         self.gravity_queued = None
 
         self.player.update(controls, self.world, dt)
-        event = self.guard.update(self.player, dt)
-        if event == "hit":
-            self.message = "Momentum strike!"
-            self.message_timer = 1.0
-        elif event == "heavy_hit":
-            self.message = "Heavy momentum strike!"
-            self.message_timer = 1.2
-        elif event == "player_hurt":
-            self.message = "Too slow. Alex loses a direct fight."
-            self.message_timer = 1.7
+        for guard in self.guards:
+            event = guard.update(self.player, dt)
 
-        if not self.guard.alive:
-            self.message = "Guard defeated. Press R to reset the chamber."
+            if event == "hit":
+                self.message = "Momentum strike!"
+                self.message_timer = 1.0
+            elif event == "heavy_hit":
+                self.message = "Heavy momentum strike!"
+                self.message_timer = 1.2
+            elif event == "player_hurt":
+                self.message = "Too slow. Alex loses a direct fight."
+                self.message_timer = 1.7
+
+        if all(not guard.alive for guard in self.guards):
+            self.message = "Guards defeated. Press R to reset the chamber."
             self.message_timer = 999.0
         elif self.player.health <= 0:
             self.message = "Alex is down. Press R to try again."
@@ -116,7 +122,8 @@ class TestRoomScene(Scene):
         self._draw_grid(surface)
         self._draw_solids(surface)
         self._draw_gravity_markers(surface)
-        self.guard.draw(surface)
+        for guard in self.guards:
+            guard.draw(surface)
         self.player.draw(surface)
         self._draw_hud(surface)
         if self.debug_visible:
@@ -178,13 +185,18 @@ class TestRoomScene(Scene):
             surface.blit(message_surface, message_rect)
 
     def _draw_debug(self, surface: pygame.Surface) -> None:
+        guard_health = " | ".join(
+                f"{guard.health}/{guard.max_health}"
+                for guard in self.guards
+            )
+        
         lines: Iterable[str] = [
             f"gravity: {self.player.gravity_direction.label}",
             f"velocity: ({self.player.velocity.x:7.1f}, {self.player.velocity.y:7.1f})",
             f"speed: {self.player.speed:6.1f}",
             f"grounded: {self.player.grounded}",
             f"impact ready: {self.player.attack_held and self.player.speed >= self.settings.impact_speed}",
-            f"guard health: {self.guard.health}/{self.guard.max_health}",
+            f"guard health: {guard_health}"
         ]
         box = pygame.Rect(930, 42, 290, 154)
         pygame.draw.rect(surface, (15, 17, 22), box, border_radius=8)

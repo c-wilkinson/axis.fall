@@ -61,3 +61,86 @@ class PlayerSprites:
             self._oriented_cache[key] = image
 
         return self._oriented_cache[key]
+
+class GuardSprites:
+    FRAME_SIZES = {
+        "idle.png": (64, 80),
+        "walk_0.png": (64, 80),
+        "walk_1.png": (64, 80),
+        "walk_2.png": (64, 80),
+        "walk_3.png": (64, 80),
+        "death.png": (96, 80),
+    }
+
+    ANIMATIONS = {
+        "idle": ("idle.png",),
+        "walk": (
+            "walk_0.png",
+            "walk_1.png",
+            "walk_2.png",
+            "walk_3.png",
+        ),
+        "death": ("death.png",),
+    }
+
+    def __init__(self) -> None:
+        self.animations = {
+            name: tuple(self._load(filename) for filename in filenames)
+            for name, filenames in self.ANIMATIONS.items()
+        }
+
+        self._oriented_cache: dict[
+            tuple[str, int, int],
+            pygame.Surface,
+        ] = {}
+
+    @classmethod
+    def _load(cls, filename: str) -> pygame.Surface:
+        resource = files("axisfall").joinpath(
+            "assets",
+            "guard",
+            filename,
+        )
+
+        with as_file(resource) as path:
+            image = pygame.image.load(path).convert_alpha()
+
+        expected_size = cls.FRAME_SIZES[filename]
+
+        if image.get_size() != expected_size:
+            image = pygame.transform.scale(
+                image,
+                expected_size,
+            )
+
+        return image
+
+    def frame(
+        self,
+        animation: str,
+        index: int,
+        facing: int,
+    ) -> pygame.Surface:
+        frames = self.animations[animation]
+        index %= len(frames)
+
+        normalised_facing = 1 if facing >= 0 else -1
+        key = (
+            animation,
+            index,
+            normalised_facing,
+        )
+
+        if key not in self._oriented_cache:
+            image = frames[index]
+
+            if normalised_facing < 0:
+                image = pygame.transform.flip(
+                    image,
+                    True,
+                    False,
+                )
+
+            self._oriented_cache[key] = image
+
+        return self._oriented_cache[key]

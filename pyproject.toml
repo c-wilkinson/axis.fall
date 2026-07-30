@@ -35,4 +35,4 @@ target-version = "py311"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.setuptools.package-data]
-axisfall = ["assets/player/*.png"]
+axisfall = ["assets/**/*.png"]

@@ -4,9 +4,12 @@ import pygame
 
 from axisfall.entities.player import Player
 from axisfall.settings import Settings
+from axisfall.sprites import GuardSprites
 
 
 class Guard:
+    WALK_FRAME_TIME = 0.14
+    
     def __init__(self, position: tuple[int, int], settings: Settings, patrol_range: tuple[int, int] | None = None, patrol_speed: float = 80.0,  facing_direction: int = 1) -> None:
         self.settings = settings
         self.start_position = position
@@ -22,6 +25,9 @@ class Guard:
         self.start_direction = 1 if facing_direction >= 0 else -1
         self.patrol_direction = self.start_direction
         self.patrol_x = float(self.rect.centerx)
+        
+        self.animation_timer = 0.0
+        self._sprites: GuardSprites | None = None
 
     @property
     def alive(self) -> bool:
@@ -34,12 +40,17 @@ class Guard:
         self.contact_cooldown = 0.0
         self.patrol_direction = self.start_direction
         self.patrol_x = float(self.rect.centerx)
+        
+        self.animation_timer = 0.0
 
     def update(self, player: Player, dt: float) -> str | None:
         self.hit_flash_timer = max(0.0, self.hit_flash_timer - dt)
         self.contact_cooldown = max(0.0, self.contact_cooldown - dt)
 
         if self.alive:
+            if self.patrol_range is not None:
+                self.animation_timer += dt
+
             self._update_patrol(dt)
 
         if (
@@ -102,64 +113,48 @@ class Guard:
         self.rect.centerx = round(self.patrol_x)
 
     def draw(self, surface: pygame.Surface) -> None:
+        if self._sprites is None:
+            self._sprites = GuardSprites()
+
         if not self.alive:
-            wreck = self.rect.copy()
-            wreck.height = 14
-            wreck.bottom = self.rect.bottom
-            pygame.draw.rect(surface, (76, 78, 84), wreck, border_radius=4)
+            image = self._sprites.frame(
+                "death",
+                0,
+                self.patrol_direction,
+            )
+
+            image_rect = image.get_rect(
+                midbottom=self.rect.midbottom,
+            )
+
+            surface.blit(image, image_rect)
             return
 
-        fill = (230, 105, 105) if self.hit_flash_timer <= 0 else (255, 235, 235)
-        pygame.draw.rect(surface, fill, self.rect, border_radius=6)
-        pygame.draw.rect(surface, (38, 34, 40), self.rect, width=4, border_radius=6)
-
-        shield = pygame.Rect(0, 0, 12, 40)
-
-        if self.patrol_direction > 0:
-            shield.midleft = (
-                self.rect.right - 4,
-                self.rect.centery,
-            )
-            visor_start = (
-                self.rect.centerx,
-                self.rect.top + 15,
-            )
-            visor_end = (
-                self.rect.right + 3,
-                self.rect.top + 15,
-            )
+        if self.patrol_range is None:
+            animation = "idle"
+            frame_index = 0
         else:
-            shield.midright = (
-                self.rect.left + 4,
-                self.rect.centery,
-            )
-            visor_start = (
-                self.rect.centerx,
-                self.rect.top + 15,
-            )
-            visor_end = (
-                self.rect.left - 3,
-                self.rect.top + 15,
+            animation = "walk"
+            frame_index = (
+                int(self.animation_timer / self.WALK_FRAME_TIME)
+                % len(self._sprites.animations["walk"])
             )
 
-        pygame.draw.rect(
-            surface,
-            (92, 98, 112),
-            shield,
-            border_radius=4,
+        image = self._sprites.frame(
+            animation,
+            frame_index,
+            self.patrol_direction,
         )
 
-        pygame.draw.line(
-            surface,
-            (38, 34, 40),
-            visor_start,
-            visor_end,
-            width=4,
+        if self.hit_flash_timer > 0.0:
+            image = image.copy()
+            image.fill(
+                (90, 90, 90),
+                special_flags=pygame.BLEND_RGB_ADD,
+            )
+
+        image_rect = image.get_rect(
+            midbottom=self.rect.midbottom,
         )
 
-        bar = pygame.Rect(self.rect.left, self.rect.top - 12, self.rect.width, 6)
-        pygame.draw.rect(surface, (40, 42, 48), bar)
-        if self.health:
-            health_bar = bar.copy()
-            health_bar.width = round(bar.width * (self.health / self.max_health))
-            pygame.draw.rect(surface, (224, 224, 224), health_bar)
+        surface.blit(image, image_rect)

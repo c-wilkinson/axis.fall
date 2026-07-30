@@ -9,6 +9,7 @@ from axisfall.sprites import GuardSprites
 
 class Guard:
     WALK_FRAME_TIME = 0.14
+    DEATH_FRAME_TIME = 0.10
     
     def __init__(self, position: tuple[int, int], settings: Settings, patrol_range: tuple[int, int] | None = None, patrol_speed: float = 80.0,  facing_direction: int = 1) -> None:
         self.settings = settings
@@ -27,6 +28,7 @@ class Guard:
         self.patrol_x = float(self.rect.centerx)
         
         self.animation_timer = 0.0
+        self.death_animation_timer = 0.0
         self._sprites: GuardSprites | None = None
 
     @property
@@ -40,25 +42,36 @@ class Guard:
         self.contact_cooldown = 0.0
         self.patrol_direction = self.start_direction
         self.patrol_x = float(self.rect.centerx)
-        
+        self.death_animation_timer = 0.0
         self.animation_timer = 0.0
 
     def update(self, player: Player, dt: float) -> str | None:
         self.hit_flash_timer = max(0.0, self.hit_flash_timer - dt)
         self.contact_cooldown = max(0.0, self.contact_cooldown - dt)
 
-        if self.alive:
-            if self.patrol_range is not None:
-                self.animation_timer += dt
+        if not self.alive:
+            if self._sprites is not None:
+                max_time = (
+                    (self._sprites.frame_count("death") - 1)
+                    * self.DEATH_FRAME_TIME
+                )
+                self.death_animation_timer = min(
+                    self.death_animation_timer + dt,
+                    max_time,
+                )
+            return None
+
+        if self.patrol_range is not None:
+            self.animation_timer += dt
 
             self._update_patrol(dt)
 
         if (
-            not self.alive
-            or not player.alive
+            not player.alive
             or not self.rect.colliderect(player.rect)
         ):
             return None
+
         if self.contact_cooldown > 0.0:
             return None
 
@@ -78,9 +91,13 @@ class Guard:
             if player_is_in_front:
                 damage *= 0.5
 
+            was_alive = self.alive
             self.health = max(0.0, self.health - damage)
             self.hit_flash_timer = 0.16
             self.contact_cooldown = 0.25
+
+            if was_alive and not self.alive:
+                self.death_animation_timer = 0.0
 
             if player.velocity.length_squared() > 0:
                 player.velocity = -player.velocity.normalize() * min(260.0, impact_speed * 0.35)
@@ -95,6 +112,25 @@ class Guard:
         player.take_damage(knockback)
         self.contact_cooldown = 0.55
         return "player_hurt"
+
+    def _blit_aligned(
+        self,
+        surface: pygame.Surface,
+        image: pygame.Surface,
+    ) -> None:
+        visible = image.get_bounding_rect()
+
+        if visible.width == 0 or visible.height == 0:
+            top_left = image.get_rect(midbottom=self.rect.midbottom).topleft
+            surface.blit(image, top_left)
+            return
+
+        target_x, target_y = self.rect.midbottom
+        top_left = (
+            round(target_x - visible.midbottom[0]),
+            round(target_y - visible.midbottom[1]),
+        )
+        surface.blit(image, top_left)
 
     def _update_patrol(self, dt: float) -> None:
         if self.patrol_range is None:
@@ -117,17 +153,18 @@ class Guard:
             self._sprites = GuardSprites()
 
         if not self.alive:
+            frame_index = min(
+                int(self.death_animation_timer / self.DEATH_FRAME_TIME),
+                self._sprites.frame_count("death") - 1,
+            )
+
             image = self._sprites.frame(
                 "death",
-                0,
+                frame_index,
                 self.patrol_direction,
             )
 
-            image_rect = image.get_rect(
-                midbottom=self.rect.midbottom,
-            )
-
-            surface.blit(image, image_rect)
+            self._blit_aligned(surface, image)
             return
 
         if self.patrol_range is None:
@@ -137,7 +174,7 @@ class Guard:
             animation = "walk"
             frame_index = (
                 int(self.animation_timer / self.WALK_FRAME_TIME)
-                % len(self._sprites.animations["walk"])
+                % self._sprites.frame_count("walk")
             )
 
         image = self._sprites.frame(
@@ -153,8 +190,4 @@ class Guard:
                 special_flags=pygame.BLEND_RGB_ADD,
             )
 
-        image_rect = image.get_rect(
-            midbottom=self.rect.midbottom,
-        )
-
-        surface.blit(image, image_rect)
+        self._blit_aligned(surface, image)

@@ -69,7 +69,10 @@ class GuardSprites:
         "walk_1.png": (64, 80),
         "walk_2.png": (64, 80),
         "walk_3.png": (64, 80),
-        "death.png": (96, 80),
+        "death_0.png": (96, 80),
+        "death_1.png": (96, 80),
+        "death_2.png": (96, 80),
+        "death_3.png": (96, 80),
     }
 
     ANIMATIONS = {
@@ -80,7 +83,12 @@ class GuardSprites:
             "walk_2.png",
             "walk_3.png",
         ),
-        "death": ("death.png",),
+        "death": (
+            "death_0.png",
+            "death_1.png",
+            "death_2.png",
+            "death_3.png",
+        ),
     }
 
     def __init__(self) -> None:
@@ -114,6 +122,9 @@ class GuardSprites:
             )
 
         return image
+
+    def frame_count(self, animation: str) -> int:
+        return len(self.animations[animation])
 
     def frame(
         self,
